@@ -1,9 +1,6 @@
 import Router from "koa-router";
 import fs from "fs";
 import io  from "./io.js";
-import RoomsClients from "./roomsClients.js";
-
-const roomsClients = RoomsClients.Get();
 
 const router = new Router();
 
@@ -29,11 +26,10 @@ router.get('/room/:name', async (ctx) => {
     }
 
     ctx.response.type = 'application/json';
-    const rooms= Object.keys(roomsClients);
 
     ctx.response.body = {
         "status": true,
-        "result": {'rooms':rooms}
+        "result": ''
     };
 });
 
@@ -42,10 +38,6 @@ router.delete('/room/:name', async (ctx) => {
     const room_name = ctx.params.name;
 
     console.log('delete room name :', room_name);
-
-    if (Array.isArray(roomsClients[room_name])){
-        delete roomsClients[room_name];
-    }
 
     //io.socketsLeave(room_name);
     io.in(room_name).disconnectSockets(true);

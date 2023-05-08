@@ -2,9 +2,6 @@ import { app,server }  from "./app.js";
 import router from "./router.js";
 import serve from "koa-static";
 import io from "./io.js";
-import RoomsClients from "./roomsClients.js";
-
-const roomsClients = RoomsClients.Get();
 
 type Msg = {
     time: number,
@@ -25,11 +22,11 @@ app.use(serve('static')); //http://localhost:3000/js/jquery.min.js
 
 io.on('connection', (socket) => {
 
-    console.log('socket id: ' + socket.id);
+    console.log('connection socket id : ' + socket.id);
 
-    socket.on('login', (req) => {
+    socket.on('login',async (req) => {
 
-        console.log('login.req: ' + req);
+        console.log('login.req : ' + req);
 
         var login = JSON.parse(req);
 
@@ -42,18 +39,15 @@ io.on('connection', (socket) => {
             'client_name': client_name,
         };
 
+        socket.to(room_name).emit('login', msg);
+
         let clientList: Record < string, string >= { };
 
-        if (Array.isArray(roomsClients[room_name]) && roomsClients[room_name].length) {
+        const clientSockets = await io.in(room_name).fetchSockets();
 
-            for (const client of roomsClients[room_name]) {
+        for (const clientSocket of clientSockets) {
 
-                clientList[client.socket.id] = client.socket.data.client_name
-
-                client.socket.emit('login', msg);
-
-            }
-
+            clientList[clientSocket.id] = clientSocket.data.client_name
         }
 
         socket.data.room_name = room_name;
@@ -61,28 +55,15 @@ io.on('connection', (socket) => {
 
         socket.join(room_name);
 
-        if (Array.isArray(roomsClients[room_name]) && roomsClients[room_name].length){
-
-            roomsClients[room_name].push({ socket: socket});
-
-        }else{
-
-            roomsClients[room_name] = [];
-            roomsClients[room_name].push({ socket: socket});
-
-        }
-
         msg.client_list = clientList
 
         socket.emit('login', msg);
 
-        console.log('login roomsClients', roomsClients);
     });
 
     socket.on('say', async (req) => {
 
-        console.log('say.req: ' + req);
-        console.log('say room', socket.data.room_name);
+        console.log('say.req : ' + req);
 
         var say = JSON.parse(req);
 
@@ -130,51 +111,36 @@ io.on('connection', (socket) => {
     });
 
 
-    socket.on('disconnect', () => {
+    socket.on('disconnect',async () => {
 
-        console.log('disconnect', socket.id);
+        console.log('disconnect socker id : ', socket.id);
         
         const room_name:string = socket.data.room_name;
 
-        if (Array.isArray(roomsClients[room_name])){
+        const clientSockets = await io.in(room_name).fetchSockets();
 
-            let removeIndex: number = -1
+        let roomUserCount=0;
 
-            roomsClients[room_name].forEach((element, index) => {
+        for (const clientSocket of clientSockets) {
 
-                if (socket.id === roomsClients[room_name][index].socket.id) {
-
-                    removeIndex = index
- 
-                }else{
-
-                    let msg: Msg = {
-                        'time': Date.now(),
-                        'from_client_id': socket.id,
-                        'from_client_name': socket.data.client_name,
-                    };
-
-                    roomsClients[room_name][index].socket.emit('logout', msg);   
-
-                    console.log(roomsClients[room_name][index].socket.data);                
-                }
-
-            });  
-
-            if (removeIndex>-1){           
-
-                roomsClients[room_name].splice(removeIndex, 1); 
-
+            if (socket.id === clientSocket.id) {
+                continue;
             }
 
-            if (roomsClients[room_name].length===0){
+            let msg: Msg = {
+                'time': Date.now(),
+                'from_client_id': socket.id,
+                'from_client_name': socket.data.client_name,
+            };
 
-                delete roomsClients[room_name];
+            clientSocket.emit('logout', msg);   
 
-            }
-        } 
+            roomUserCount++;
+        }
 
-        console.log('disconnect roomsClients', roomsClients);
+        if(roomUserCount==0){
+            console.log('room '+room_name+' is no one');
+        }
 
     });
 });

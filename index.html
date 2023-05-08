@@ -8,16 +8,15 @@
     <link href="/css/style.css" rel="stylesheet">
 
     <script type="text/javascript" src="/js/jquery.min.js"></script>
-    <script type="text/javascript" src="/js/jquery-sinaEmotion-2.1.0.min.js"></script>
 
-    <script src="http://localhost:3000/socket.io/socket.io.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
 
     <script type="text/javascript">
     if (typeof console == "undefined") { this.console = { log: function (msg) { } }; }
 
     var name, client_list = {}, room_name, client_id;
 
-    var socket;
+    var socket, socketConnect, pid;
 
     room_name = getQueryString('room_name') ? getQueryString('room_name') : "aaa";
 
@@ -27,19 +26,32 @@
         if (r != null) return unescape(r[2]); return null;
     }
 
+    function stopCheckConnect(){
+      clearInterval(pid);
+    }
+
+    function runCheckConnect(){
+      pid = setInterval(socketConnect,1000);
+    }
     // 與Server建立連線
     function connect() {
 
-        socket = io("http://localhost:3000");
+        socket = io("/");
+
+        socketConnect= function(){
+            console.log(Date.now());
+            socket.connect();
+        };
 
         socket.on('connect', () => {
-            console.log(socket.connected);
+            console.log('connect',socket.connected);
             onopen();
+            stopCheckConnect();
         });
 
         socket.on('disconnect', () => {
             console.log("斷線，重新連線");
-            socket.connect();
+            runCheckConnect();
         });
 
         socket.on('login', function (data) {
@@ -49,18 +61,14 @@
                 client_id = data['client_id'];
                 client_name = '你';
                 client_list = data['client_list'];
-                console.log('client_list Y');
             }
             else {
                 client_list[data['client_id']] = data['client_name'];
-                console.log('client_list N');
             }
 
             say(data['client_id'], data['client_name'], client_name + ' 加入了聊天室', data['time']);
 
             flush_client_list();
-
-            console.log(data['client_name'] + "登入成功");
         });
 
         socket.on('say', (data) => {
@@ -148,7 +156,7 @@
 
     // 發送訊息
     function say(from_client_id, from_client_name, content, time) {
-        $("#dialog").append('<div class="speech_item">' + from_client_name + ' <br> ' + time + '<div style="clear:both;"></div><p class="triangle-isosceles top">' + content + '</p> </div>').parseEmotion();
+        $("#dialog").append('<div class="speech_item">' + from_client_name + ' <br> ' + time + '<div style="clear:both;"></div><p class="triangle-isosceles top">' + content + '</p> </div>');
     }
 
     $(function () {
